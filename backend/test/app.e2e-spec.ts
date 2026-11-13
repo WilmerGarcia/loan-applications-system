@@ -15,6 +15,7 @@ describe('AppController (e2e)', () => {
       client_id: 7,
       requested_amount: 1200,
       term_months: 12,
+      interest_rate: 30,
       status: 'pending',
       installments: [],
     };
@@ -46,6 +47,7 @@ describe('AppController (e2e)', () => {
       client_id: 7,
       requested_amount: 1200,
       term_months: 12,
+      interest_rate: 30,
     };
 
     await request(app.getHttpServer())

@@ -6,6 +6,7 @@ import { useDebounce } from './hooks/useDebounce';
 
 export default function App() {
   const [status, setStatus] = useState('');
+  const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [loans, setLoans] = useState<LoanList | null>(null);
   const [loading, setLoading] = useState(true);
@@ -13,6 +14,7 @@ export default function App() {
   const [reloadCount, setReloadCount] = useState(0);
 
   const debouncedStatus = useDebounce(status, 400);
+  const debouncedSearch = useDebounce(search, 400);
 
   useEffect(() => {
     // Si el filtro cambia mientras carga, ignoramos la respuesta vieja
@@ -22,7 +24,7 @@ export default function App() {
     setLoading(true);
     setError('');
 
-    getLoans(page, debouncedStatus)
+    getLoans(page, debouncedStatus, debouncedSearch)
       .then((data) => {
         if (!ignore) setLoans(data);
       })
@@ -41,7 +43,7 @@ export default function App() {
     return () => {
       ignore = true;
     };
-  }, [page, debouncedStatus, reloadCount]);
+  }, [page, debouncedStatus, debouncedSearch, reloadCount]);
 
   const reload = () => setReloadCount((count) => count + 1);
 
@@ -61,11 +63,23 @@ export default function App() {
 
   return (
     <main>
-      <h1>Solicitudes de crédito</h1>
-
-      <LoanForm onCreated={handleCreated} />
+      <header className="cabecera">
+        <h1>Solicitudes de crédito</h1>
+        <LoanForm onCreated={handleCreated} />
+      </header>
 
       <div className="filters">
+        <label htmlFor="search">Buscar</label>
+        <input
+          id="search"
+          type="search"
+          value={search}
+          placeholder="Nombre del cliente"
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
+        />
         <label htmlFor="status">Estado</label>
         <select
           id="status"
@@ -90,7 +104,7 @@ export default function App() {
 
       {isEmpty && <p>No hay solicitudes con ese filtro.</p>}
 
-      {hasData && <LoanTable loans={loans.data} />}
+      {hasData && <LoanTable loans={loans.data} onChanged={reload} />}
 
       <div className="pagination">
         <button disabled={page <= 1} onClick={() => setPage(page - 1)}>

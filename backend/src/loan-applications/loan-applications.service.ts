@@ -19,7 +19,7 @@ import type {
 } from './interface/loan-application.interface';
 import { buildInstallmentPlan } from './utils/installments.util';
 import { CreateLoanApplicationDto } from './dto/create-loan-application.dto';
-import { ANNUAL_INTEREST_RATE } from './loan.constants';
+import { DEFAULT_INTEREST_RATE } from './loan.constants';
 
 @Injectable()
 export class LoanApplicationsService {
@@ -28,12 +28,12 @@ export class LoanApplicationsService {
     private readonly clientsService: ClientsService,
   ) {}
 
-
   // Trae la lista de solicitudes de préstamo con paginación y filtros opcionales
   async findAll(
     query: QueryLoanApplicationsDto,
   ): Promise<PaginatedResponse<LoanApplicationListItem>> {
     const { page, limit, status } = query;
+    const search = query.search?.trim();
 
     const from = query.from ? parseISO(query.from) : undefined;
     const to = query.to ? parseISO(query.to) : undefined;
@@ -44,6 +44,7 @@ export class LoanApplicationsService {
 
     const filtrar = (qb: Knex.QueryBuilder) => {
       if (status) qb.where('la.status', status);
+      if (search) qb.where('c.full_name', 'like', `%${search}%`);
       if (from) qb.where('la.created_at', '>=', format(from, 'yyyy-MM-dd'));
       // Sumamos un día para que "to" incluya todo ese día
       if (to)
@@ -58,6 +59,7 @@ export class LoanApplicationsService {
         'c.full_name as client_name',
         'la.requested_amount',
         'la.term_months',
+        'la.annual_interest_rate as interest_rate',
         'la.status',
         'la.created_at',
       )
@@ -70,6 +72,7 @@ export class LoanApplicationsService {
       .offset((page - 1) * limit);
 
     const conteo = this.knex('loan_application as la')
+      .join('client as c', 'c.id', 'la.client_id')
       .modify(filtrar)
       .count({ total: '*' })
       .first();
@@ -83,56 +86,25 @@ export class LoanApplicationsService {
     };
   }
 
-  //crea solicitud de préstamos y genera las cuotas si la solicitud es aprobada
-  async create(
-    dto: CreateLoanApplicationDto,
-  ): Promise<LoanApplicationWithInstallments> {
-    const status = dto.status ?? 'pending';
-
-    // Validar la exietncia del cliente
-    await this.clientsService.findByIdOrFail(dto.client_id);
-
-    // Inserta la solicitud y las cuotas en una transacción
-    return this.knex.transaction(async (trx) => {
-      const [id] = await trx('loan_application').insert({
-        client_id: dto.client_id,
-        requested_amount: dto.requested_amount,
-        term_months: dto.term_months,
-        status,
-      });
-
-
-     // Si la solicitud es aprobada, entonces se generan las cuotas
-      if (status === 'approved') {
-        const plan = buildInstallmentPlan(
-          dto.requested_amount,
-          dto.term_months,
-          ANNUAL_INTEREST_RATE
-        );
-        await trx('installment').insert(
-          plan.map((cuota) => ({ ...cuota, loan_application_id: id })),
-        );
-      }
-
-      // Retorna la solicitud con sus cuotas
-      const solicitud = await trx<LoanApplication>('loan_application')
-        .where({ id })
-        .first();
-      const cuotas = await trx<Installment>('installment')
-        .where({ loan_application_id: id })
-        .orderBy('due_date');
-
-      return { ...(solicitud as LoanApplication), installments: cuotas };
-    });
-  }
-
-  // Trae una solicitud de préstamo por su ID, incluyendo sus cuotas
+  // Trae una solicitud por id con sus cuotas
   async findByIdOrFail(
     id: number,
   ): Promise<LoanApplicationWithInstallments> {
-    const solicitud = await this.knex<LoanApplication>('loan_application')
-      .where({ id })
+    const solicitud = await this.knex('loan_application as la')
+      .join('client as c', 'c.id', 'la.client_id')
+      .select(
+        'la.id',
+        'la.client_id',
+        'c.full_name as client_name',
+        'la.requested_amount',
+        'la.term_months',
+        'la.annual_interest_rate as interest_rate',
+        'la.status',
+        'la.created_at',
+      )
+      .where('la.id', id)
       .first();
+
     if (!solicitud) {
       throw new NotFoundException('Solicitud de préstamo no encontrada');
     }
@@ -144,45 +116,130 @@ export class LoanApplicationsService {
     return { ...solicitud, installments };
   }
 
-  // Genera las cuotas de una solicitud de préstamo aprobada
-  async generateInstallments(
-    loanApplicationId: number,
-  ): Promise<void> {
-    await this.knex.transaction(async (trx) => {
+  // crea solicitud; si viene aprobada genera las cuotas de una vez
+  async create(
+    dto: CreateLoanApplicationDto,
+  ): Promise<LoanApplicationWithInstallments> {
+    const status = dto.status ?? 'pending';
+    const interestRate = dto.interest_rate ?? DEFAULT_INTEREST_RATE;
+
+    // Validar la existencia del cliente
+    await this.clientsService.findByIdOrFail(dto.client_id);
+
+    return this.knex.transaction(async (trx) => {
+      const [id] = await trx('loan_application').insert({
+        client_id: dto.client_id,
+        requested_amount: dto.requested_amount,
+        term_months: dto.term_months,
+        annual_interest_rate: interestRate,
+        status,
+      });
+
+      if (status === 'approved') {
+        await this.insertarCuotas(
+          trx,
+          id,
+          dto.requested_amount,
+          dto.term_months,
+          interestRate,
+        );
+      }
+
+      return this.cargarConCuotas(trx, id);
+    });
+  }
+
+  // pasa de pendiente a aprobada y arma el plan de mensualidades
+  async approve(id: number): Promise<LoanApplicationWithInstallments> {
+    return this.knex.transaction(async (trx) => {
       const solicitud = await trx<LoanApplication>('loan_application')
-        .where({ id: loanApplicationId })
+        .select(
+          'id',
+          'client_id',
+          'requested_amount',
+          'term_months',
+          'annual_interest_rate as interest_rate',
+          'status',
+          'created_at',
+        )
+        .where({ id })
         .forUpdate()
         .first();
 
       if (!solicitud) {
         throw new NotFoundException('Solicitud de préstamo no encontrada');
       }
-      if (solicitud.status !== 'approved') {
+
+      if (solicitud.status !== 'pending') {
         throw new BadRequestException(
-          'Solo se pueden generar cuotas para solicitudes aprobadas',
+          'Solo se pueden aprobar solicitudes pendientes',
         );
       }
 
-      const existingInstallment = await trx<Installment>('installment')
-        .where({ loan_application_id: loanApplicationId })
+      const yaTieneCuotas = await trx<Installment>('installment')
+        .where({ loan_application_id: id })
         .first();
-      if (existingInstallment) {
+
+      if (yaTieneCuotas) {
         throw new ConflictException(
           'Las cuotas de esta solicitud ya fueron generadas',
         );
       }
 
-      const plan = buildInstallmentPlan(
+      await trx('loan_application').where({ id }).update({ status: 'approved' });
+
+      await this.insertarCuotas(
+        trx,
+        id,
         Number(solicitud.requested_amount),
         solicitud.term_months,
-        ANNUAL_INTEREST_RATE,
+        Number(solicitud.interest_rate),
       );
-      await trx('installment').insert(
-        plan.map((cuota) => ({
-          ...cuota,
-          loan_application_id: loanApplicationId,
-        })),
-      );
+
+      return this.cargarConCuotas(trx, id);
     });
+  }
+
+  private async insertarCuotas(
+    trx: Knex.Transaction,
+    loanId: number,
+    amount: number,
+    termMonths: number,
+    interestPercent: number,
+  ) {
+    const plan = buildInstallmentPlan(
+      amount,
+      termMonths,
+      interestPercent / 100,
+    );
+
+    await trx('installment').insert(
+      plan.map((cuota) => ({ ...cuota, loan_application_id: loanId })),
+    );
+  }
+
+  private async cargarConCuotas(
+    trx: Knex.Transaction,
+    id: number,
+  ): Promise<LoanApplicationWithInstallments> {
+    const solicitud = await trx<LoanApplication>('loan_application as la')
+      .join('client as c', 'c.id', 'la.client_id')
+      .select(
+        'la.id',
+        'la.client_id',
+        'c.full_name as client_name',
+        'la.requested_amount',
+        'la.term_months',
+        'la.annual_interest_rate as interest_rate',
+        'la.status',
+        'la.created_at',
+      )
+      .where('la.id', id)
+      .first();
+    const cuotas = await trx<Installment>('installment')
+      .where({ loan_application_id: id })
+      .orderBy('due_date');
+
+    return { ...(solicitud as LoanApplication), installments: cuotas };
   }
 }

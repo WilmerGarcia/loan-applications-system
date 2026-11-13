@@ -1,7 +1,7 @@
 import type { Knex } from 'knex';
 import { format, isBefore, parseISO, subDays } from 'date-fns';
 import { buildInstallmentPlan } from '../../loan-applications/utils/installments.util';
-import { ANNUAL_INTEREST_RATE } from '../../loan-applications/loan.constants';
+import { DEFAULT_INTEREST_RATE } from '../../loan-applications/loan.constants';
 
 // Clientes de prueba
 const clients = [
@@ -50,7 +50,7 @@ function getLoanStatus(
   const [firstInstallment] = buildInstallmentPlan(
     amount,
     term,
-    ANNUAL_INTEREST_RATE,
+    DEFAULT_INTEREST_RATE / 100,
   );
 
   if (firstInstallment.amount > monthlyIncome * 0.45) {
@@ -72,7 +72,7 @@ function createInstallments(
   return buildInstallmentPlan(
     amount,
     term,
-    ANNUAL_INTEREST_RATE,
+    DEFAULT_INTEREST_RATE / 100,
     requestDate,
   ).map((item) => ({
     loan_application_id: loanId,
@@ -129,6 +129,7 @@ export async function seed(knex: Knex): Promise<void> {
         client_id: client.id,
         requested_amount: amount,
         term_months: term,
+        annual_interest_rate: DEFAULT_INTEREST_RATE,
         status,
         created_at: requestDate,
       });

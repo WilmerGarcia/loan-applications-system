@@ -6,6 +6,8 @@ import {
   IsIn,
   IsInt,
   IsOptional,
+  IsString,
+  MaxLength,
   Max,
   Min,
 } from 'class-validator';
@@ -41,6 +43,11 @@ export class QueryLoanApplicationsDto {
   })
   status?: LoanStatus;
 
+  @ApiProperty({ description: 'Buscar por nombre del cliente', required: false })
+  @IsOptional()
+  @IsString({ message: 'search debe ser texto' })
+  @MaxLength(100, { message: 'search no puede superar 100 caracteres' })
+  search?: string;
   
   @ApiProperty({ description: 'Fecha inicial para filtrar las solicitudes' })
   @IsOptional()

@@ -10,6 +10,7 @@ export async function up(knex: Knex): Promise<void> {
 
     table.decimal('requested_amount', 12, 2).notNullable();
     table.integer('term_months').unsigned().notNullable();
+    table.decimal('annual_interest_rate', 5, 2).notNullable().defaultTo(15.0);
 
     table.enu('status', ['pending', 'approved', 'rejected']).defaultTo('pending').notNullable();
 

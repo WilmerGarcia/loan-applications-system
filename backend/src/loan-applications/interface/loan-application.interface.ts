@@ -5,6 +5,7 @@ export interface LoanApplication {
   client_id: number;
   requested_amount: string;
   term_months: number;
+  interest_rate: string;
   status: LoanStatus;
   created_at: Date;
 }
@@ -22,5 +23,6 @@ export interface Installment {
 }
 
 export interface LoanApplicationWithInstallments extends LoanApplication {
+  client_name?: string;
   installments: Installment[];
 }

@@ -1,24 +1,72 @@
-import { useState } from 'react';
-import { createLoan, type LoanStatus } from '../api/api';
+import { useEffect, useState } from 'react';
+import { createLoan, getClients, type Client } from '../api/api';
 
 interface Props {
   onCreated: () => void;
 }
 
 export default function LoanForm({ onCreated }: Props) {
+  const [abierto, setAbierto] = useState(false);
+  const [clientes, setClientes] = useState<Client[]>([]);
+  const [cargandoClientes, setCargandoClientes] = useState(false);
   const [clientId, setClientId] = useState('');
   const [amount, setAmount] = useState('');
   const [term, setTerm] = useState('12');
-  const [status, setStatus] = useState<LoanStatus>('pending');
+  const [interes, setInteres] = useState('15');
   const [error, setError] = useState('');
   const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    if (!abierto) return;
+
+    let cancelado = false;
+    setCargandoClientes(true);
+    setError('');
+
+    getClients()
+      .then((lista) => {
+        if (cancelado) return;
+        setClientes(lista);
+        if (lista.length > 0) {
+          setClientId(String(lista[0].id));
+        }
+      })
+      .catch((err) => {
+        if (!cancelado) {
+          setError(
+            err instanceof Error ? err.message : 'No se pudieron cargar los clientes',
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelado) setCargandoClientes(false);
+      });
+
+    return () => {
+      cancelado = true;
+    };
+  }, [abierto]);
+
+  function cerrar() {
+    setAbierto(false);
+    setError('');
+    setAmount('');
+    setTerm('12');
+    setInteres('15');
+    setClientId('');
+  }
 
   async function enviar(e: React.FormEvent) {
     e.preventDefault();
     setError('');
 
     if (!clientId || Number(amount) <= 0) {
-      setError('Escribe el cliente y un monto mayor a 0');
+      setError('Escoge un cliente y un monto mayor a 0');
+      return;
+    }
+
+    if (Number(interes) < 0 || Number(interes) > 100) {
+      setError('El interés tiene que estar entre 0 y 100');
       return;
     }
 
@@ -28,12 +76,9 @@ export default function LoanForm({ onCreated }: Props) {
         client_id: Number(clientId),
         requested_amount: Number(amount),
         term_months: Number(term),
-        status,
+        interest_rate: Number(interes),
       });
-      setClientId('');
-      setAmount('');
-      setTerm('12');
-      setStatus('pending');
+      cerrar();
       onCreated();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar');
@@ -43,38 +88,103 @@ export default function LoanForm({ onCreated }: Props) {
   }
 
   return (
-    <form onSubmit={enviar} className="formulario">
-      <h2>Nueva solicitud</h2>
-
-      <label>
-        ID del cliente
-        <input type="number" value={clientId} onChange={(e) => setClientId(e.target.value)} />
-      </label>
-
-      <label>
-        Monto (L)
-        <input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
-      </label>
-
-      <label>
-        Plazo (meses)
-        <input type="number" value={term} onChange={(e) => setTerm(e.target.value)} />
-      </label>
-
-      <label>
-        Estado
-        <select value={status} onChange={(e) => setStatus(e.target.value as LoanStatus)}>
-          <option value="pending">Pendiente</option>
-          <option value="approved">Aprobada</option>
-          <option value="rejected">Rechazada</option>
-        </select>
-      </label>
-
-      {error && <p className="error">{error}</p>}
-
-      <button type="submit" disabled={sending}>
-        {sending ? 'Guardando...' : 'Crear solicitud'}
+    <>
+      <button type="button" onClick={() => setAbierto(true)}>
+        Nueva solicitud
       </button>
-    </form>
+
+      {abierto && (
+        <div className="modal-fondo" onClick={cerrar}>
+          <div
+            className="modal"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-labelledby="titulo-nueva-solicitud"
+          >
+            <div className="modal-cabecera">
+              <h2 id="titulo-nueva-solicitud">Nueva solicitud</h2>
+              <button type="button" className="btn-cerrar" onClick={cerrar}>
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={enviar} className="formulario">
+              <label>
+                Cliente
+                {cargandoClientes ? (
+                  <p className="hint">Cargando clientes...</p>
+                ) : (
+                  <select
+                    value={clientId}
+                    onChange={(e) => setClientId(e.target.value)}
+                    required
+                  >
+                    {clientes.length === 0 && (
+                      <option value="">No hay clientes</option>
+                    )}
+                    {clientes.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.full_name} — {c.dni}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </label>
+
+              <label>
+                Monto (L)
+                <input
+                  type="number"
+                  step="0.01"
+                  min="1"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  required
+                />
+              </label>
+
+              <label>
+                Plazo (meses)
+                <input
+                  type="number"
+                  min="1"
+                  max="60"
+                  value={term}
+                  onChange={(e) => setTerm(e.target.value)}
+                  required
+                />
+              </label>
+
+              <label>
+                Interés anual (%)
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={interes}
+                  onChange={(e) => setInteres(e.target.value)}
+                  required
+                />
+              </label>
+
+              {error && <p className="error">{error}</p>}
+
+              <div className="modal-acciones">
+                <button type="button" className="btn-secundario" onClick={cerrar}>
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={sending || cargandoClientes || !clientId}
+                >
+                  {sending ? 'Guardando...' : 'Crear solicitud'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
