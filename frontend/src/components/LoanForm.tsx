@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { createLoan, getClients, type Client } from '../api/api';
+import { createLoan, getClients } from '../api/api';
+import type { Client } from '../api/interface';
 
 interface Props {
   onCreated: () => void;

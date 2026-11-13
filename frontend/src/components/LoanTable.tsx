@@ -1,6 +1,7 @@
 import { memo, useState } from 'react';
-import { approveLoan, type Loan } from '../api/api';
+import { approveLoan} from '../api/api';
 import InstallmentsModal from './InstallmentsModal';
+import type { Loan } from '../api/interface';
 
 interface Props {
   loans: Loan[];
@@ -16,7 +17,7 @@ const etiquetas = {
 function LoanTable({ loans, onChanged }: Props) {
   const [aproveeId, setAproveeId] = useState<number | null>(null);
   const [errorAccion, setErrorAccion] = useState('');
-  const [verCuotas, setVerCuotas] = useState<Loan | null>(null);
+  const [fees, setFees] = useState<Loan | null>(null);
 
   const dinero = new Intl.NumberFormat('es-HN', {
     style: 'currency',
@@ -88,7 +89,7 @@ function LoanTable({ loans, onChanged }: Props) {
                   <button
                     type="button"
                     className="btn-secundario"
-                    onClick={() => setVerCuotas(loan)}
+                    onClick={() => setFees(loan)}
                   >
                     Ver mensualidades
                   </button>
@@ -103,8 +104,8 @@ function LoanTable({ loans, onChanged }: Props) {
         </tbody>
       </table>
 
-      {verCuotas && (
-        <InstallmentsModal loan={verCuotas} onClose={() => setVerCuotas(null)} />
+      {fees && (
+        <InstallmentsModal loan={fees} onClose={() => setFees(null)} />
       )}
     </>
   );

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { getLoan, type Installment, type Loan } from '../api/api';
+import { getLoan } from '../api/api';
+import type { Installment, Loan } from '../api/interface';
 
 interface Props {
   loan: Loan;
@@ -7,7 +8,7 @@ interface Props {
 }
 
 export default function InstallmentsModal({ loan, onClose }: Props) {
-  const [cuotas, setCuotas] = useState<Installment[]>([]);
+  const [fees, setFees] = useState<Installment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -21,7 +22,7 @@ export default function InstallmentsModal({ loan, onClose }: Props) {
 
     getLoan(loan.id)
       .then((detalle) => {
-        if (!cancelado) setCuotas(detalle.installments);
+        if (!cancelado) setFees(detalle.installments);
       })
       .catch((err) => {
         if (!cancelado) {
@@ -63,11 +64,11 @@ export default function InstallmentsModal({ loan, onClose }: Props) {
           {loading && <p>Cargando cuotas...</p>}
           {error && <p className="error">{error}</p>}
 
-          {!loading && !error && cuotas.length === 0 && (
+          {!loading && !error && fees.length === 0 && (
             <p>Esta solicitud no tiene mensualidades registradas.</p>
           )}
 
-          {!loading && cuotas.length > 0 && (
+          {!loading && fees.length > 0 && (
             <table>
               <thead>
                 <tr>
@@ -78,7 +79,7 @@ export default function InstallmentsModal({ loan, onClose }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {cuotas.map((cuota, i) => (
+                {fees.map((cuota, i) => (
                   <tr key={cuota.id}>
                     <td>{i + 1}</td>
                     <td>
