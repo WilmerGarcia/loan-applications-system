@@ -10,7 +10,7 @@ Aplicación para registrar y consultar solicitudes de préstamo. Permite buscar 
 
 ## Requisitos
 
-- Node.js y npm.
+- Node.js `v22.15.0` y npm `11.8.0` (versiones utilizadas para este proyecto).
 - Una instancia de MySQL.
 
 ## Configuración y ejecución
