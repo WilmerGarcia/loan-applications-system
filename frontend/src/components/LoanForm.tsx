@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createLoan, getClients } from '../api/api';
 import type { Client } from '../api/interface';
+import type { LoanStatus } from '../api/types';
 
 interface Props {
   onCreated: () => void;
@@ -14,6 +15,7 @@ export default function LoanForm({ onCreated }: Props) {
   const [amount, setAmount] = useState('');
   const [term, setTerm] = useState('12');
   const [interes, setInteres] = useState('15');
+  const [status, setStatus] = useState<LoanStatus>('pending');
   const [error, setError] = useState('');
   const [sending, setSending] = useState(false);
 
@@ -55,6 +57,7 @@ export default function LoanForm({ onCreated }: Props) {
     setAmount('');
     setTerm('12');
     setInteres('15');
+    setStatus('pending');
     setClientId('');
   }
 
@@ -79,6 +82,7 @@ export default function LoanForm({ onCreated }: Props) {
         requested_amount: Number(amount),
         term_months: Number(term),
         interest_rate: Number(interes),
+        status,
       });
       cerrar();
       onCreated();
@@ -168,6 +172,27 @@ export default function LoanForm({ onCreated }: Props) {
                   onChange={(e) => setInteres(e.target.value)}
                   required
                 />
+              </label>
+
+              <label>
+                Estado
+                <select
+                  value={status}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (
+                      value === 'pending' ||
+                      value === 'approved' ||
+                      value === 'rejected'
+                    ) {
+                      setStatus(value);
+                    }
+                  }}
+                >
+                  <option value="pending">Pendiente</option>
+                  <option value="approved">Aprobada</option>
+                  <option value="rejected">Rechazada</option>
+                </select>
               </label>
 
               {error && <p className="error">{error}</p>}

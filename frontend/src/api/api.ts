@@ -1,4 +1,5 @@
 import type { Client, LoanList, LoanDetail } from './interface';
+import type { LoanStatus } from './types';
 
 const API_URL = import.meta.env.VITE_API_BACKEND_URL;
 
@@ -32,6 +33,8 @@ export async function getLoans(
   pagina: number,
   estado: string,
   search = '',
+  from = '',
+  to = '',
 ): Promise<LoanList> {
   const parametros = new URLSearchParams({
     page: String(pagina),
@@ -44,9 +47,15 @@ export async function getLoans(
   if (search.trim()) {
     parametros.set('search', search.trim());
   }
+  if (from) {
+    parametros.set('from', from);
+  }
+  if (to) {
+    parametros.set('to', to);
+  }
 
   const respuesta = await fetch(
-    `${API_URL}/loan-applications?${parametros}`
+    `${API_URL}/loan-applications?${parametros}`,
   );
 
   return handleResponse(respuesta);
@@ -64,6 +73,7 @@ export async function createLoan(prestamo: {
   requested_amount: number;
   term_months: number;
   interest_rate?: number;
+  status: LoanStatus;
 }) {
   const respuesta = await fetch(`${API_URL}/loan-applications`, {
     method: 'POST',

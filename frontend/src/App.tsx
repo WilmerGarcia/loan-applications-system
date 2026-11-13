@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { getLoans, type LoanList } from './api/api';
+import { getLoans } from './api/api';
+import type { LoanList } from './api/interface';
 import LoanForm from './components/LoanForm';
 import LoanTable from './components/LoanTable';
 import { useDebounce } from './hooks/useDebounce';
@@ -7,6 +8,8 @@ import { useDebounce } from './hooks/useDebounce';
 export default function App() {
   const [status, setStatus] = useState('');
   const [search, setSearch] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
   const [page, setPage] = useState(1);
   const [loans, setLoans] = useState<LoanList | null>(null);
   const [loading, setLoading] = useState(true);
@@ -15,6 +18,8 @@ export default function App() {
 
   const debouncedStatus = useDebounce(status, 400);
   const debouncedSearch = useDebounce(search, 400);
+  const debouncedFrom = useDebounce(from, 400);
+  const debouncedTo = useDebounce(to, 400);
 
   useEffect(() => {
     // Si el filtro cambia mientras carga, ignoramos la respuesta vieja
@@ -24,7 +29,13 @@ export default function App() {
     setLoading(true);
     setError('');
 
-    getLoans(page, debouncedStatus, debouncedSearch)
+    getLoans(
+      page,
+      debouncedStatus,
+      debouncedSearch,
+      debouncedFrom,
+      debouncedTo,
+    )
       .then((data) => {
         if (!ignore) setLoans(data);
       })
@@ -43,7 +54,14 @@ export default function App() {
     return () => {
       ignore = true;
     };
-  }, [page, debouncedStatus, debouncedSearch, reloadCount]);
+  }, [
+    page,
+    debouncedStatus,
+    debouncedSearch,
+    debouncedFrom,
+    debouncedTo,
+    reloadCount,
+  ]);
 
   const reload = () => setReloadCount((count) => count + 1);
 
@@ -91,6 +109,26 @@ export default function App() {
           <option value="approved">Aprobada</option>
           <option value="rejected">Rechazada</option>
         </select>
+        <label htmlFor="from">Desde</label>
+        <input
+          id="from"
+          type="date"
+          value={from}
+          onChange={(e) => {
+            setFrom(e.target.value);
+            setPage(1);
+          }}
+        />
+        <label htmlFor="to">Hasta</label>
+        <input
+          id="to"
+          type="date"
+          value={to}
+          onChange={(e) => {
+            setTo(e.target.value);
+            setPage(1);
+          }}
+        />
       </div>
 
       {loading && <p>Cargando...</p>}
