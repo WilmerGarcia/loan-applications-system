@@ -6,9 +6,9 @@ interface Props {
 }
 
 export default function LoanForm({ onCreated }: Props) {
-  const [abierto, setAbierto] = useState(false);
+  const [open, setOpen] = useState(false);
   const [clientes, setClientes] = useState<Client[]>([]);
-  const [cargandoClientes, setCargandoClientes] = useState(false);
+  const [loadingClient, SetLoadingClient] = useState(false);
   const [clientId, setClientId] = useState('');
   const [amount, setAmount] = useState('');
   const [term, setTerm] = useState('12');
@@ -17,10 +17,11 @@ export default function LoanForm({ onCreated }: Props) {
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
-    if (!abierto) return;
+    if (!open) return;
 
     let cancelado = false;
-    setCargandoClientes(true);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    SetLoadingClient(true);
     setError('');
 
     getClients()
@@ -39,16 +40,16 @@ export default function LoanForm({ onCreated }: Props) {
         }
       })
       .finally(() => {
-        if (!cancelado) setCargandoClientes(false);
+        if (!cancelado) SetLoadingClient(false);
       });
 
     return () => {
       cancelado = true;
     };
-  }, [abierto]);
+  }, [open]);
 
   function cerrar() {
-    setAbierto(false);
+    setOpen(false);
     setError('');
     setAmount('');
     setTerm('12');
@@ -89,11 +90,11 @@ export default function LoanForm({ onCreated }: Props) {
 
   return (
     <>
-      <button type="button" onClick={() => setAbierto(true)}>
+      <button type="button" onClick={() => setOpen(true)}>
         Nueva solicitud
       </button>
 
-      {abierto && (
+      {open && (
         <div className="modal-fondo" onClick={cerrar}>
           <div
             className="modal"
@@ -111,7 +112,7 @@ export default function LoanForm({ onCreated }: Props) {
             <form onSubmit={enviar} className="formulario">
               <label>
                 Cliente
-                {cargandoClientes ? (
+                {loadingClient ? (
                   <p className="hint">Cargando clientes...</p>
                 ) : (
                   <select
@@ -176,7 +177,7 @@ export default function LoanForm({ onCreated }: Props) {
                 </button>
                 <button
                   type="submit"
-                  disabled={sending || cargandoClientes || !clientId}
+                  disabled={sending || loadingClient || !clientId}
                 >
                   {sending ? 'Guardando...' : 'Crear solicitud'}
                 </button>

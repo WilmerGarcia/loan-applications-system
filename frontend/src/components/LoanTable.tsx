@@ -14,7 +14,7 @@ const etiquetas = {
 } as const;
 
 function LoanTable({ loans, onChanged }: Props) {
-  const [aprobandoId, setAprobandoId] = useState<number | null>(null);
+  const [aproveeId, setAproveeId] = useState<number | null>(null);
   const [errorAccion, setErrorAccion] = useState('');
   const [verCuotas, setVerCuotas] = useState<Loan | null>(null);
 
@@ -23,21 +23,21 @@ function LoanTable({ loans, onChanged }: Props) {
     currency: 'HNL',
   });
 
-  async function aprobar(loan: Loan) {
+  async function aprovee(loan: Loan) {
     const ok = window.confirm(
       `¿Aprobar la solicitud de ${loan.client_name}? Se van a calcular las mensualidades.`,
     );
     if (!ok) return;
 
     setErrorAccion('');
-    setAprobandoId(loan.id);
+    setAproveeId(loan.id);
     try {
       await approveLoan(loan.id);
       onChanged();
     } catch (err) {
       setErrorAccion(err instanceof Error ? err.message : 'No se pudo aprobar');
     } finally {
-      setAprobandoId(null);
+      setAproveeId(null);
     }
   }
 
@@ -77,10 +77,10 @@ function LoanTable({ loans, onChanged }: Props) {
                   <button
                     type="button"
                     className="btn-aprobar"
-                    disabled={aprobandoId === loan.id}
-                    onClick={() => aprobar(loan)}
+                    disabled={aproveeId === loan.id}
+                    onClick={() => aprovee(loan)}
                   >
-                    {aprobandoId === loan.id ? 'Aprobando...' : 'Aprobar'}
+                    {aproveeId === loan.id ? 'Aprobando...' : 'Aprobar'}
                   </button>
                 )}
 

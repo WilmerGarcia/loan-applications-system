@@ -1,50 +1,9 @@
+import type { Client, LoanList, LoanDetail } from './interface';
 
 const API_URL = import.meta.env.VITE_API_BACKEND_URL;
 
 if (!API_URL) {
   throw new Error('Falta configurar VITE_API_BACKEND_URL en el archivo .env');
-}
-
-export type LoanStatus = 'pending' | 'approved' | 'rejected';
-
-export interface Client {
-  id: number;
-  full_name: string;
-  dni: string;
-  monthly_income: string;
-}
-
-export interface Installment {
-  id: number;
-  loan_application_id: number;
-  due_date: string;
-  amount: string;
-  paid: boolean;
-}
-
-export interface Loan {
-  id: number;
-  client_id: number;
-  client_name: string;
-  requested_amount: string;
-  term_months: number;
-  interest_rate: string;
-  status: LoanStatus;
-  created_at: string;
-}
-
-export interface LoanDetail extends Loan {
-  installments: Installment[];
-}
-
-export interface LoanList {
-  data: Loan[];
-  meta: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
 }
 
 // Revisamos la respuesta del servidor y mostramos el mensaje si ocurre algún error
@@ -62,11 +21,13 @@ async function handleResponse(respuesta: Response) {
   return datos;
 }
 
+// Trae la lista de clientes
 export async function getClients(): Promise<Client[]> {
   const respuesta = await fetch(`${API_URL}/clients`);
   return handleResponse(respuesta);
 }
 
+// Trae la lista de solicitudes de préstamo
 export async function getLoans(
   pagina: number,
   estado: string,
@@ -91,11 +52,13 @@ export async function getLoans(
   return handleResponse(respuesta);
 }
 
+// Trae una solicitud por id con sus cuotas
 export async function getLoan(id: number): Promise<LoanDetail> {
   const respuesta = await fetch(`${API_URL}/loan-applications/${id}`);
   return handleResponse(respuesta);
 }
 
+// Crea una nueva solicitud de préstamo
 export async function createLoan(prestamo: {
   client_id: number;
   requested_amount: number;
@@ -113,6 +76,7 @@ export async function createLoan(prestamo: {
   return handleResponse(respuesta);
 }
 
+// Aprueba una solicitud de préstamo
 export async function approveLoan(id: number): Promise<LoanDetail> {
   const respuesta = await fetch(`${API_URL}/loan-applications/${id}/approve`, {
     method: 'PATCH',
