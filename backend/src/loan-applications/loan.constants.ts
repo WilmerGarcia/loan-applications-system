@@ -1,0 +1,1 @@
+export const ANNUAL_INTEREST_RATE = 0.3;
