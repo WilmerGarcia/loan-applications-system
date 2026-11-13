@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Inject,
   Injectable,
   NotFoundException,
@@ -122,6 +123,66 @@ export class LoanApplicationsService {
         .orderBy('due_date');
 
       return { ...(solicitud as LoanApplication), installments: cuotas };
+    });
+  }
+
+  // Trae una solicitud de préstamo por su ID, incluyendo sus cuotas
+  async findByIdOrFail(
+    id: number,
+  ): Promise<LoanApplicationWithInstallments> {
+    const solicitud = await this.knex<LoanApplication>('loan_application')
+      .where({ id })
+      .first();
+    if (!solicitud) {
+      throw new NotFoundException('Solicitud de préstamo no encontrada');
+    }
+
+    const installments = await this.knex<Installment>('installment')
+      .where({ loan_application_id: id })
+      .orderBy('due_date');
+
+    return { ...solicitud, installments };
+  }
+
+  // Genera las cuotas de una solicitud de préstamo aprobada
+  async generateInstallments(
+    loanApplicationId: number,
+  ): Promise<void> {
+    await this.knex.transaction(async (trx) => {
+      const solicitud = await trx<LoanApplication>('loan_application')
+        .where({ id: loanApplicationId })
+        .forUpdate()
+        .first();
+
+      if (!solicitud) {
+        throw new NotFoundException('Solicitud de préstamo no encontrada');
+      }
+      if (solicitud.status !== 'approved') {
+        throw new BadRequestException(
+          'Solo se pueden generar cuotas para solicitudes aprobadas',
+        );
+      }
+
+      const existingInstallment = await trx<Installment>('installment')
+        .where({ loan_application_id: loanApplicationId })
+        .first();
+      if (existingInstallment) {
+        throw new ConflictException(
+          'Las cuotas de esta solicitud ya fueron generadas',
+        );
+      }
+
+      const plan = buildInstallmentPlan(
+        Number(solicitud.requested_amount),
+        solicitud.term_months,
+        ANNUAL_INTEREST_RATE,
+      );
+      await trx('installment').insert(
+        plan.map((cuota) => ({
+          ...cuota,
+          loan_application_id: loanApplicationId,
+        })),
+      );
     });
   }
 }

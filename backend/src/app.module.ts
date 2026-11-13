@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule } from '@nestjs/config';
+import { ClientsModule } from './clients/clients.module';
 import { DatabaseModule } from './database/database.module';
 import { LoanApplicationsModule } from './loan-applications/loan-applications.module';
 
@@ -12,6 +13,7 @@ import { LoanApplicationsModule } from './loan-applications/loan-applications.mo
       isGlobal: true,
     }),
     DatabaseModule,
+    ClientsModule,
     LoanApplicationsModule
   ],
   controllers: [AppController],
