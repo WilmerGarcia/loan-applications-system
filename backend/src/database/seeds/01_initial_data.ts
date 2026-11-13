@@ -1,6 +1,7 @@
-
 import type { Knex } from 'knex';
-import { addMonths, format, isBefore, subDays } from 'date-fns';
+import { format, isBefore, parseISO, subDays } from 'date-fns';
+import { buildInstallmentPlan } from '../../loan-applications/utils/installments.util';
+import { ANNUAL_INTEREST_RATE } from '../../loan-applications/loan.constants';
 
 // Clientes de prueba
 const clients = [
@@ -26,7 +27,10 @@ const loanAmounts = [
   200000, 250000, 350000, 450000,
 ];
 
+// Plazos de préstamo en meses
 const loanTerms = [6, 12, 18, 24, 36, 48];
+
+// Total de préstamos a generar
 const totalLoans = 50;
 
 type LoanStatus = 'pending' | 'approved' | 'rejected';
@@ -42,51 +46,44 @@ function getLoanStatus(
     return 'pending';
   }
 
-  const estimatedMonthlyPayment = amount / term;
+  // La cuota incluye interés
+  const [firstInstallment] = buildInstallmentPlan(
+    amount,
+    term,
+    ANNUAL_INTEREST_RATE,
+  );
 
-  if (estimatedMonthlyPayment > monthlyIncome * 0.45) {
+  if (firstInstallment.amount > monthlyIncome * 0.45) {
     return 'rejected';
   }
 
   return Math.random() < 0.85 ? 'approved' : 'pending';
 }
 
-// Generamos las cuotas de un préstamo aprobado.
+// Cuotas de un préstamo aprobado
 function createInstallments(
   loanId: number,
   amount: number,
   term: number,
   requestDate: Date,
 ) {
-  const totalCents = Math.round(amount * 100);
-  const regularPayment = Math.floor(totalCents / term);
   const today = new Date();
 
-  const installments = [];
-
-  for (let month = 1; month <= term; month++) {
-    const dueDate = addMonths(requestDate, month);
-
-    // Ajustamos la última cuota para no perder ningún centavo.
-    const payment =
-      month === term
-        ? totalCents - regularPayment * (term - 1)
-        : regularPayment;
-
-    installments.push({
-      loan_application_id: loanId,
-      due_date: format(dueDate, 'yyyy-MM-dd'),
-      amount: payment / 100,
-      paid: isBefore(dueDate, today) && Math.random() < 0.85,
-    });
-  }
-
-  return installments;
+  return buildInstallmentPlan(
+    amount,
+    term,
+    ANNUAL_INTEREST_RATE,
+    requestDate,
+  ).map((item) => ({
+    loan_application_id: loanId,
+    due_date: item.due_date,
+    amount: item.amount,
+    paid: isBefore(parseISO(item.due_date), today) && Math.random() < 0.85,
+  }));
 }
 
 export async function seed(knex: Knex): Promise<void> {
-  // Primero limpiamos las tablas que tienen relaciones.
-  // Así evitamos conflictos con las llaves foráneas.
+  // Primero limpiamos las tablas que tienen relaciones. Así evitamos conflictos con las llaves foráneas.
   await knex.transaction(async (trx) => {
     await trx('installment').del();
     await trx('loan_application').del();
@@ -106,7 +103,7 @@ export async function seed(knex: Knex): Promise<void> {
 
     const installments = [];
 
-    // Creamos las solicitudes de préstamo.
+    // Crear las solicitudes de préstamo.
     for (let i = 0; i < totalLoans; i++) {
       const client = savedClients[
         Math.floor(Math.random() * savedClients.length)
@@ -139,17 +136,12 @@ export async function seed(knex: Knex): Promise<void> {
       // Solo los préstamos aprobados tienen cuotas.
       if (status === 'approved') {
         installments.push(
-          ...createInstallments(
-            Number(loanId),
-            amount,
-            term,
-            requestDate,
-          ),
+          ...createInstallments(Number(loanId), amount, term, requestDate),
         );
       }
     }
 
-    // Insertamos todas las cuotas generadas en grupos de 100.
+    // Insertar todas las cuotas generadas en grupos de 100.
     if (installments.length > 0) {
       await trx.batchInsert('installment', installments, 100);
     }
